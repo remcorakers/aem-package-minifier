@@ -1,4 +1,7 @@
+#!/usr/bin/env python3
+
 import zipfile
+import fileinput
 from optparse import OptionParser
 import sys
 import re
@@ -32,7 +35,19 @@ def minify_files(path):
 def create_new_package(target_path, source_dir):
   print("Zipping minified package...")
   shutil.make_archive(target_path, 'zip', source_dir)
-  print("Minified package created at '%s.zip'" % target_path)
+  print("Minified package created at '%s'.zip" % target_path)
+
+def alter_package_name(target_path):
+  properties_path = os.path.join(target_path, 'META-INF', 'vault', 'properties.xml')
+  with fileinput.FileInput(properties_path, inplace=True) as file:
+    for line in file:
+      match = re.findall('<entry key="name">([^<]+)</entry>', line)
+      if match:
+        new_package_name = "%s-minified" % match[0]
+        print(line.replace(match[0], new_package_name), end='')
+      else:
+        print(line, end='')
+  print("Renamed package name to '%s'" % new_package_name)
 
 def calculate_filesize(filename):
   zip = zipfile.ZipFile(filename)
@@ -55,21 +70,23 @@ def calculate_filesize(filename):
 # Define variables
 package_path = option_dic['filename']
 package_dir = os.path.dirname(os.path.abspath(package_path))
-temp_dir = os.path.join(package_dir, package_path + "-extract")
+package_filename_without_extension = os.path.splitext(os.path.basename(package_path))[0]
+temp_dir = os.path.join(package_dir, package_filename_without_extension + "-extract")
 current_dir_path = os.path.dirname(os.path.realpath(__file__))
-target_path = os.path.join(package_dir, package_path + "-minified")
+target_path_without_extension = os.path.join(package_dir, package_filename_without_extension + "-minified")
 
 if os.path.exists(temp_dir):
   sys.exit("Temp directory '%s' already exists" % temp_dir)
 
-if os.path.exists(target_path + ".zip"):
-  sys.exit("Target file '%s.zip' already exists" % target_path)
+if os.path.exists(target_path_without_extension + ".zip"):
+  sys.exit("Target file '%s.zip' already exists" % target_path_without_extension)
 
 # Execute commands
 print("Start minifying package '%s'..." % package_path)
 calculate_filesize(package_path)
 unzip_file(package_path, temp_dir)
 minify_files(temp_dir)
-create_new_package(target_path, temp_dir)
+alter_package_name(temp_dir)
+create_new_package(target_path_without_extension, temp_dir)
 shutil.rmtree(temp_dir)
 print("Finished minifying package")
